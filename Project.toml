@@ -1,0 +1,4 @@
+name = "DyModelNODE"
+uuid = "01b48799-3620-4c00-8479-ab215577f013"
+authors = ["Sven Duve <svenduve@gmail.com>"]
+version = "0.1.0"
