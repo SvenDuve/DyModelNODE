@@ -301,9 +301,6 @@ function modelEnv(environment, hyperParams::HyperParameter)
             timestamps = Float32[i for i in 1:size(X)[2]]
             Ŝ = fθ(timestamps, X)
             
-            # @show size(Ŝ)
-            # @show size(Rϕ(X))
-            # @show size(hcat(R...))
             push!(losses, Flux.Losses.mse(Ŝ, S´))
             push!(reward_losses, Flux.Losses.mse(Rϕ(X), hcat(R...)))
             push!(acc, accuracy(S´, Ŝ, hyperParams.tolerance))
