@@ -14,7 +14,15 @@ using Zygote
 
 
 
-export HyperParameter, agent
+export HyperParameter, 
+        modelEnv,
+        ReplayBuffer,
+        remember,
+        sample,
+        setReward,
+        ODE_RNN,
+        train_step!
+
 
 
 
@@ -122,29 +130,6 @@ function action(model, state, train, ep, hp)
 end
 
 
-
-# function setNODE(state_size, action_size)
-
-#     down = Dense(state_size + action_size, 64)
-
-#     #dudt = Dense(64, 64, relu)
-
-#     dudt = RNN(64 => 64, identity)
-#     #dudt = GRU(64 => 64)
-        
-# #    nn_ode = NeuralODE(dudt, (0.0f0, 1.0f0), Tsit5(),
-#     nn_ode = NeuralODE(dudt, (0.0f0, 1.f0), Tsit5(),
-#         save_everystep=false,
-#         reltol=1e-3, abstol=1e-3,
-#         save_start=false) #|> gpu
-
-#     fc = Dense(64, state_size)
-
-#     return Flux.Chain(down, nn_ode, first, fc)
-
-# end
-
-
 function setReward(state_size, action_size)
 
     return Chain(Dense(state_size + action_size, 64, tanh),
@@ -204,10 +189,34 @@ function accuracy(y_true, y_pred, tolerance)
 end
 
 
+function train_step!(S, A, R, S´, T, fθ, Rϕ, ep::EnvParameter, hp::HyperParameter)
+
+    X = vcat(S, A)
+    timestamps = Float32[i for i in 1:size(X)[2]]
+    
+    # Train both critic networks
+
+    sum(T[1:(end-1)]) > 0 && return
+
+    try
+
+        dθ = Flux.gradient(m -> Flux.Losses.mse(m(timestamps, X), S´), fθ)
+        Flux.update!(model_opt, fθ, dθ[1])
+        
+        dϕ = Flux.gradient(m -> Flux.Losses.mse(m(X), hcat(R...)), Rϕ)
+        Flux.update!(reward_opt, Rϕ, dϕ[1])
+
+    catch
+
+        println("Solve most probably divergent, this only affects the current hidden state solve, but has no effect on prior or further solves")
+
+    end
+
+end
 
 
-function agent(environment, hyperParams::HyperParameter)
-    println("Hello people I am here")
+
+function modelEnv(environment, hyperParams::HyperParameter)
 
     gym = pyimport("gym")
     if environment == "LunarLander-v2"
@@ -264,21 +273,8 @@ function agent(environment, hyperParams::HyperParameter)
 
 #                    S, A, R, S´, T = sample(buffer, StatsBase.sample(2:hyperParams.trajectory))
                     S, A, R, S´, T = sample(buffer, hyperParams.trajectory)
+                    train_step!(S, A, R, S´, T, fθ, Rϕ, envParams, hyperParams)
 
-                    X = vcat(S, A)
-                    timestamps = Float32[i for i in 1:size(X)[2]]
-                    #@show timestamps
-
-                    sum(T[1:(end-1)]) > 0 && continue
-                    try
-                        dθ = Flux.gradient(m -> Flux.Losses.mse(m(timestamps, X), S´), fθ)
-                        Flux.update!(model_opt, fθ, dθ[1])
-                        
-                        dϕ = Flux.gradient(m -> Flux.Losses.mse(m(X), hcat(R...)), Rϕ)
-                        Flux.update!(reward_opt, Rϕ, dϕ[1])
-                    catch
-                        println("Solve most probably divergent, this only affects the current hidden state solve, but has no effect on prior or further solves")
-                    end
 
                 end
             end
