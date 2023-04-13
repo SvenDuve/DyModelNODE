@@ -10,15 +10,13 @@ using PyCall
 using SciMLSensitivity
 import StatsBase
 using Zygote
+using RLTypes
 
 
 
 
-export HyperParameter, 
-        modelEnv,
-        ReplayBuffer,
-        remember,
-        sample,
+export modelEnv,
+        ModelParameter,
         setReward,
         ODE_RNN,
         train_step!
@@ -26,96 +24,96 @@ export HyperParameter,
 
 
 
-@with_kw mutable struct EnvParameter
-    # Dimensions
-    ## Actions
-    action_size::Int =                      1
-    action_bound::Float32 =                 1.f0
-    action_bound_high::Array{Float32} =     [1.f0]
-    action_bound_low::Array{Float32} =      [-1.f0]
-    ## States
-    state_size::Int =                       1
-    state_bound_high::Array{Float32} =      [1.f0]
-    state_bound_low::Array{Float32} =       [1.f0]
-end
+# @with_kw mutable struct EnvParameter
+#     # Dimensions
+#     ## Actions
+#     action_size::Int =                      1
+#     action_bound::Float32 =                 1.f0
+#     action_bound_high::Array{Float32} =     [1.f0]
+#     action_bound_low::Array{Float32} =      [-1.f0]
+#     ## States
+#     state_size::Int =                       1
+#     state_bound_high::Array{Float32} =      [1.f0]
+#     state_bound_low::Array{Float32} =       [1.f0]
+# end
 
 
-@with_kw mutable struct HyperParameter
-    # Buffer size
-    buffer_size::Int =                      1000000
-    # Exploration
-    expl_noise::Float32 =                   0.2f0
-    noise_clip::Float32 =                   1.f0
-    # Training Metrics
-    training_episodes::Int =                5
-    maximum_episode_length::Int =           10
-    train_start:: Int =                     1
-    batch_size::Int =                       8
-    trajectory::Int =                       20
-    # Metrics
-    episode_reward::Array{Float32} =        []
-    model_loss::Array{Float32} =            []
-    reward_loss::Array{Float32} =           []
-    episode_steps::Array{Int} =             []
-    # Discount
-    γ::Float32 =                            0.99f0
-    # Learning Rates
-    model_η::Float64 =                      0.001
-    hidden::Int =                           20
-    reward_η::Float64 =                     0.001
-    # Agents
-    store_frequency::Int =                  10
-    trained_model =                        []
-    trained_reward =                        []
-    # Mean Predition Error
-    mpe =                                   []
-    accuracy =                              []
-    tolerance::Float64 =                    0.05
-end
+# @with_kw mutable struct HyperParameter
+#     # Buffer size
+#     buffer_size::Int =                      1000000
+#     # Exploration
+#     expl_noise::Float32 =                   0.2f0
+#     noise_clip::Float32 =                   1.f0
+#     # Training Metrics
+#     training_episodes::Int =                5
+#     maximum_episode_length::Int =           10
+#     train_start:: Int =                     1
+#     batch_size::Int =                       8
+#     trajectory::Int =                       20
+#     # Metrics
+#     episode_reward::Array{Float32} =        []
+#     model_loss::Array{Float32} =            []
+#     reward_loss::Array{Float32} =           []
+#     episode_steps::Array{Int} =             []
+#     # Discount
+#     γ::Float32 =                            0.99f0
+#     # Learning Rates
+#     model_η::Float64 =                      0.001
+#     hidden::Int =                           20
+#     reward_η::Float64 =                     0.001
+#     # Agents
+#     store_frequency::Int =                  10
+#     trained_model =                        []
+#     trained_reward =                        []
+#     # Mean Predition Error
+#     mpe =                                   []
+#     accuracy =                              []
+#     tolerance::Float64 =                    0.05
+# end
 
 
 
 
-# Define the experience replay buffer
-mutable struct ReplayBuffer
-    capacity::Int
-    memory::Vector{Tuple{Vector{Float32}, Vector{Float32}, Float32, Vector{Float32}, Bool}}
-    pos::Int
-end
+# # Define the experience replay buffer
+# mutable struct ReplayBuffer
+#     capacity::Int
+#     memory::Vector{Tuple{Vector{Float32}, Vector{Float32}, Float32, Vector{Float32}, Bool}}
+#     pos::Int
+# end
 
-# outer constructor for the Replay Buffer
-function ReplayBuffer(capacity::Int)
-    memory = []
-    return ReplayBuffer(capacity, memory, 1)
-end
-
-
-function remember(buffer::ReplayBuffer, state, action, reward, next_state, done)
-    if length(buffer.memory) < buffer.capacity
-        push!(buffer.memory, (state, action, reward, next_state, done))
-    else
-        buffer.memory[buffer.pos] = (state, action, reward, next_state, done)
-    end
-    buffer.pos = mod1(buffer.pos + 1, buffer.capacity)
-end
+# # outer constructor for the Replay Buffer
+# function ReplayBuffer(capacity::Int)
+#     memory = []
+#     return ReplayBuffer(capacity, memory, 1)
+# end
 
 
-function sample(buffer::ReplayBuffer, batch_size::Int)
+# function remember(buffer::ReplayBuffer, state, action, reward, next_state, done)
+#     if length(buffer.memory) < buffer.capacity
+#         push!(buffer.memory, (state, action, reward, next_state, done))
+#     else
+#         buffer.memory[buffer.pos] = (state, action, reward, next_state, done)
+#     end
+#     buffer.pos = mod1(buffer.pos + 1, buffer.capacity)
+# end
 
-    # State progression verified manually with small batch_size
+
+# function sample(buffer::ReplayBuffer, method::ModelMethod, batch_size::Int)
+
+#     # State progression verified manually with small batch_size
     
-    start = StatsBase.sample(1:(size(buffer.memory)[1] - batch_size))
-    batch = buffer.memory[start:(start+batch_size-1)]
-    states, actions, rewards, next_states, dones = [], [], [], [], []
-    for (s, a, r, ns, d) in batch
-        push!(states, s)
-        push!(actions, a)
-        push!(rewards, r)
-        push!(next_states, ns)
-        push!(dones, d)
-    end
-    return hcat(states...), hcat(actions...), rewards, hcat(next_states...), dones
-end
+#     start = StatsBase.sample(1:(size(buffer.memory)[1] - batch_size))
+#     batch = buffer.memory[start:(start+batch_size-1)]
+#     states, actions, rewards, next_states, dones = [], [], [], [], []
+#     for (s, a, r, ns, d) in batch
+#         push!(states, s)
+#         push!(actions, a)
+#         push!(rewards, r)
+#         push!(next_states, ns)
+#         push!(dones, d)
+#     end
+#     return hcat(states...), hcat(actions...), rewards, hcat(next_states...), dones
+# end
 
 
 
@@ -189,7 +187,7 @@ function accuracy(y_true, y_pred, tolerance)
 end
 
 
-function train_step!(S, A, R, S´, T, fθ, Rϕ, ep::EnvParameter, hp::HyperParameter)
+function train_step!(S, A, R, S´, T, fθ, Rϕ, ep::EnvParameter, hp::ModelParameter)
 
     X = vcat(S, A)
     timestamps = Float32[i for i in 1:size(X)[2]]
@@ -216,7 +214,7 @@ end
 
 
 
-function modelEnv(environment, hyperParams::HyperParameter)
+function modelEnv(environment, modelParams::ModelParameter)
 
     gym = pyimport("gym")
     if environment == "LunarLander-v2"
@@ -238,17 +236,17 @@ function modelEnv(environment, hyperParams::HyperParameter)
     envParams.state_bound_high =   env.observation_space.high
     envParams.state_bound_low =    env.observation_space.low
 
-    global fθ = ODE_RNN(envParams.state_size + envParams.action_size, hyperParams.hidden, envParams.state_size)
-    global model_opt = Flux.setup(Flux.Optimise.Adam(hyperParams.model_η), fθ)
+    global fθ = ODE_RNN(envParams.state_size + envParams.action_size, modelParams.hidden, envParams.state_size)
+    global model_opt = Flux.setup(Flux.Optimise.Adam(modelParams.model_η), fθ)
 
     global Rϕ = setReward(envParams.state_size, envParams.action_size)
-    global reward_opt = Flux.setup(Flux.Optimise.Adam(hyperParams.reward_η), Rϕ)
+    global reward_opt = Flux.setup(Flux.Optimise.Adam(modelParams.reward_η), Rϕ)
 
-    buffer = ReplayBuffer(hyperParams.buffer_size)
+    buffer = ReplayBuffer(modelParams.buffer_size)
 
     episode = 0
 
-    for i in 1:hyperParams.training_episodes
+    for i in 1:modelParams.training_episodes
         
         frames = 0
         s, info = env.reset()
@@ -257,7 +255,7 @@ function modelEnv(environment, hyperParams::HyperParameter)
 
         while true
 
-            #a = action(μθ, s, true, envParams, hyperParams)
+            #a = action(μθ, s, true, envParams, modelParams)
             a = env.action_space.sample()
             s´, r, terminated, truncated, _ = env.step(a)
             
@@ -267,14 +265,12 @@ function modelEnv(environment, hyperParams::HyperParameter)
 
             remember(buffer, s, a, r, s´, t)
 
-            if episode > hyperParams.train_start
+            if episode > modelParams.train_start
 
-                for j in 1:hyperParams.batch_size
+                for j in 1:modelParams.batch_size
 
-#                    S, A, R, S´, T = sample(buffer, StatsBase.sample(2:hyperParams.trajectory))
-                    S, A, R, S´, T = sample(buffer, hyperParams.trajectory)
-                    train_step!(S, A, R, S´, T, fθ, Rϕ, envParams, hyperParams)
-
+                    S, A, R, S´, T = sample(buffer, ModelMethod(), modelParams.trajectory)
+                    train_step!(S, A, R, S´, T, fθ, Rϕ, envParams, modelParams)
 
                 end
             end
@@ -295,7 +291,7 @@ function modelEnv(environment, hyperParams::HyperParameter)
         
         for l in 1:10
             
-            S, A, R, S´, T = sample(buffer, hyperParams.trajectory)
+            S, A, R, S´, T = sample(buffer, ModelMethod(), modelParams.trajectory)
             sum(T[1:(end-1)]) > 0 && continue
             X = vcat(S, A)
             timestamps = Float32[i for i in 1:size(X)[2]]
@@ -303,13 +299,13 @@ function modelEnv(environment, hyperParams::HyperParameter)
             
             push!(losses, Flux.Losses.mse(Ŝ, S´))
             push!(reward_losses, Flux.Losses.mse(Rϕ(X), hcat(R...)))
-            push!(acc, accuracy(S´, Ŝ, hyperParams.tolerance))
+            push!(acc, accuracy(S´, Ŝ, modelParams.tolerance))
 
         end
 
-        if episode % hyperParams.store_frequency == 0
+        if episode % modelParams.store_frequency == 0
 
-            # S, A, R, S´, T = sample(buffer, hyperParams.trajectory)
+            # S, A, R, S´, T = sample(buffer, modelParams.trajectory)
             # if sum(T[1:(end-1)]) == 0
             #     X = vcat(S, A)
             #     timestamps = Float32[i for i in 1:size(X)[2]]
@@ -320,22 +316,22 @@ function modelEnv(environment, hyperParams::HyperParameter)
             #     @show Ŝ
             # end
 
-            push!(hyperParams.trained_model, deepcopy(fθ))
-            push!(hyperParams.trained_reward, deepcopy(Rϕ))
+            push!(modelParams.trained_model, deepcopy(fθ))
+            push!(modelParams.trained_reward, deepcopy(Rϕ))
         end
 
-        push!(hyperParams.model_loss, StatsBase.mean(losses))
-        push!(hyperParams.reward_loss, StatsBase.mean(reward_losses))
-        push!(hyperParams.accuracy, StatsBase.mean(acc))
-        push!(hyperParams.episode_steps, frames)
-        push!(hyperParams.episode_reward, episode_rewards)
+        push!(modelParams.model_loss, StatsBase.mean(losses))
+        push!(modelParams.reward_loss, StatsBase.mean(reward_losses))
+        push!(modelParams.accuracy, StatsBase.mean(acc))
+        push!(modelParams.episode_steps, frames)
+        push!(modelParams.episode_reward, episode_rewards)
         
-        println("Episode: $episode | Accuracy: $(round(hyperParams.accuracy[end], digits=2)) | Model Loss: $(hyperParams.model_loss[end]) | Reward Loss: $(hyperParams.reward_loss[end])|  Steps: $(frames)")
+        println("Episode: $episode | Accuracy: $(round(modelParams.accuracy[end], digits=2)) | Model Loss: $(modelParams.model_loss[end]) | Reward Loss: $(modelParams.reward_loss[end])|  Steps: $(frames)")
         episode += 1
 
     end
     
-    return hyperParams
+    return modelParams
     
 end
 
@@ -345,5 +341,5 @@ end # module DyModelNODE
 
 # This Works
 
-# hp = agent("Pendulum-v1", HyperParameter(training_episodes=100, train_start=20, batch_size = 8, tolerance= 0.1))
-# hp = agent("LunarLander-v2", HyperParameter(training_episodes=100, train_start=20, batch_size = 8, tolerance= 0.1))
+# hp = modelEnv("Pendulum-v1", HyperParameter(training_episodes=100, train_start=20, batch_size = 8, tolerance= 0.1))
+# hp = modelEnv("LunarLander-v2", HyperParameter(training_episodes=100, train_start=20, batch_size = 8, tolerance= 0.1))
