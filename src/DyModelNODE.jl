@@ -16,7 +16,6 @@ using RLTypes
 
 
 export modelEnv,
-        ModelParameter,
         setReward,
         ODE_RNN,
         train_step!
