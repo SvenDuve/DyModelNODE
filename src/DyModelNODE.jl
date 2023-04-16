@@ -186,7 +186,7 @@ function accuracy(y_true, y_pred, tolerance)
 end
 
 
-function train_step!(S, A, R, S´, T, fθ, Rϕ, ep::EnvParameter, hp::ModelParameter)
+function train_step!(S, A, R, S´, T, fθ, Rϕ)
 
     X = vcat(S, A)
     timestamps = Float32[i for i in 1:size(X)[2]]
