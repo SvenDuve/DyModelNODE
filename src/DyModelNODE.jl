@@ -269,7 +269,7 @@ function modelEnv(environment, modelParams::ModelParameter)
                 for j in 1:modelParams.batch_size
 
                     S, A, R, S´, T = sample(buffer, ModelMethod(), modelParams.trajectory)
-                    train_step!(S, A, R, S´, T, fθ, Rϕ, envParams, modelParams)
+                    train_step!(S, A, R, S´, T, fθ, Rϕ)
 
                 end
             end
